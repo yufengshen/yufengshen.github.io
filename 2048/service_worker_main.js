@@ -4,8 +4,7 @@ const CACHE_NAME = 'cache-v1';
 // The files we want to cache
 const resourceList = [
   '/',
-  './index.html',
-  './favicon.ico',
+  './2048.html',
   './style/main.css',
   './style/fonts/clear-sans.css',
   './style/fonts/ClearSans-Bold-webfont.eot',
@@ -26,12 +25,7 @@ const resourceList = [
   './js/html_actuator.js',
   './js/keyboard_input_manager.js',
   './js/local_storage_manager.js',
-  './js/tile.js',
-  './meta/apple-touch-icon.png',
-  './meta/apple-touch-icon_96.png',
-  './meta/apple-touch-icon_144.png',
-  './meta/apple-touch-startup-image-640x920.png',
-  './meta/apple-touch-startup-image-640x1096.png'
+  './js/tile.js'
 ];
 
 self.addEventListener('install', event => {
