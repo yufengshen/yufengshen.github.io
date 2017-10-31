@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <title>Quick Start</title>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0 maximum-scale=1.0 user-scalable=no">
+    <link rel="stylesheet" type="text/css" href="http://downloads.ipalmap.com/sdks/js/latest/NGR.css">
+    <script src="http://downloads.ipalmap.com/sdks/js/latest/NGR.min.js"></script>
+
+</head>
+<body style="height: 100%; margin: 0; padding: 0;">
+    <div id="map" style="width: 100%; height: 100%; margin: 0; padding: 0; position:absolute"></div>
+    <script>
+  
+  (function () {
+    window.map = new NGR.View('map', {
+        appKey: "98ffe80c89024cfd8e1caf7a6a624bf3"
+    });
+    window.res = new NGR.DataSource({
+        appKey: "98ffe80c89024cfd8e1caf7a6a624bf3"
+    });
+
+    window.layers = {};
+    res.requestMaps().then(function (maps) {
+        res.requestPOIChildren(maps.list[0].poi).then(function(floors) {
+            return res.requestPlanarGraph(floors[0].id).then(function (layerInfo) {
+                console.log(layerInfo);
+                return NGR.IO.fetch({
+                    url: './style.json',
+                    onsuccess: JSON.parse
+                }).then(function (style) {
+                    layers.frame = NGR.featureLayer(layerInfo, {
+                        layerType: 'Frame',
+                        styleConfig: style
+                    });
+                    layers.area = NGR.featureLayer(layerInfo, {
+                        layerType: 'Area',
+                        styleConfig: style
+                    });
+                    layers.annotation = NGR.featureLayer(layerInfo.Area, {
+                        layerType: 'LogoLabel',
+                        styleConfig: style
+                    });
+                    layers.facility = NGR.featureLayer(layerInfo.Facility, {
+                        layerType: 'Facility',
+                        styleConfig: style
+                    });
+
+                    layers.collision = NGR.layerGroup.collision({
+                        margin: 3
+                    });
+                    layers.collision.addLayer(layers.annotation);
+                    layers.collision.addLayer(layers.facility);
+
+                    map.addLayer(layers.frame);
+                    map.addLayer(layers.area);
+                    map.addLayer(layers.collision);
+
+                    map.render();
+                }).fail(function (e) {
+                    return console.error(e, e.stack);
+                });
+            }).fail(function (e) {
+                return console.error(e, e.stack);
+            });
+        }).fail(function (e) {
+            return console.error(e, e.stack);
+        });
+    }).fail(function (e) {
+        return console.error(e, e.stack);
+    });
+}).call(this);
+
+  
+  
+  </script>
+</body>
+</html>
