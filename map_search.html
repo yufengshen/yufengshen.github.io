@@ -1,0 +1,212 @@
+(function () {
+  window.map = new NGR.View('map', {
+    appKey: "b7a7263084694c20b5294ed1e0aaf311"
+  });
+  window.res = new NGR.DataSource({
+    appKey: "b7a7263084694c20b5294ed1e0aaf311"
+  });
+ 
+  window.layers = {};
+ 
+  var mapId = 171;
+ 
+  var marker = null;
+ 
+  // 搜索中心经纬度
+  var centerLatLng = NGR.latLng([31.236859692993924, 121.4996239542961]);
+ 
+  // 搜索中心WGS84坐标
+  var coord = NGR.CRS.EPSG3857.project(centerLatLng);
+ 
+  var control = NGR.control.floor();
+ 
+  var onerror = function (e) {
+    console.error(e, e.stack);
+  };
+ 
+  // 请求楼层数据
+  var loadPlanarGraph = function (planarGraphId) {
+    res.requestPlanarGraph(planarGraphId).then(function (layerInfo) {
+      console.log(layerInfo);
+      NGR.IO.fetch({
+        url: './style.json',
+        onsuccess: JSON.parse
+      }).then(function (style) {
+        map.clear();
+        // 清除marker和查询页
+        marker = null;
+        removeSearchPad();
+        // 加载各个楼层
+        layers.frame = NGR.featureLayer(layerInfo, {
+            layerType: 'Frame',
+            styleConfig: style
+        });
+        layers.area = NGR.featureLayer(layerInfo, {
+            layerType: 'Area',
+            styleConfig: style
+        });
+        layers.annotation = NGR.featureLayer(layerInfo.Area, {
+            layerType: 'LogoLabel',
+            styleConfig: style
+        });
+        layers.facility = NGR.featureLayer(layerInfo.Facility, {
+            layerType: 'Facility',
+            styleConfig: style
+        });
+ 
+        layers.collision = NGR.layerGroup.collision({
+            margin: 3
+        });
+        layers.collision.addLayer(layers.annotation);
+        layers.collision.addLayer(layers.facility);
+ 
+        map.addLayer(layers.frame);
+        map.addLayer(layers.area);
+        map.addLayer(layers.collision);
+ 
+        // 绘制搜索范围
+        var circle = NGR.circle(centerLatLng, 30, { color: 'blue', weight: 1 });
+ 
+        map.addLayer(circle);
+ 
+        // 渲染地图
+        map.render();
+      }).fail(onerror);
+    }).fail(onerror);
+  };
+ 
+  // 合并高亮字段下标
+  var mergeSegments = function (segments, segment) {
+    var newSegments = [];
+    var newSegment = segment.slice()
+ 
+    for (var i = 0; i < segments.length; ++i) {
+      var tempSegment = segments[i];
+ 
+      if (newSegment[0] > tempSegment[1] || newSegment[1] < tempSegment[0]) {
+        newSegments.push(segments.slice());
+      } else {
+        newSegment[0] = Math.min(newSegment[0], tempSegment[0]);
+        newSegment[1] = Math.max(newSegment[1], tempSegment[1]);
+      }
+    }
+    newSegments.push(newSegment);
+ 
+    return newSegments;
+  };
+ 
+  // 处理高亮字段
+  var highlight = function (src, keywords) {
+    var offset = NGR.DataUtils.getOffset([src], keywords)[0];
+    var textArray = src.split('');
+    var mergeOffset = [];
+    var insertOffset = 0;
+ 
+    for (var i = 0; i < offset.length; i += 2) {
+      var segment = [offset[i], offset[i + 1]];
+ 
+      mergeOffset = mergeSegments(mergeOffset, segment);
+    }
+    mergeOffset.sort();
+    for (var i = 0; i < mergeOffset.length; ++i) {
+      textArray.splice(mergeOffset[i][0] + insertOffset++, 0, '<b>');
+      textArray.splice(mergeOffset[i][1] + insertOffset++, 0, '</b>');
+    }
+ 
+    return textArray.join('');
+  }
+ 
+  // 创建查询结果页
+  var createSearchPad = function (list, top, transform) {
+    var searchPad = NGR.DomUtil.create('div', 'search-pad ngr-bar', document.body);
+ 
+    searchPad.style.top = top;
+    searchPad.style.transform = transform;
+    for (var i in list) {
+      var poi = list[i];
+      var item = NGR.DomUtil.create('a', '', searchPad);
+      var text = poi.name;
+ 
+      item.innerHTML = highlight(text, poi.highlights);
+      item.href = '#';
+      item.setAttribute('poi', poi.id);
+      // 点击查询结果在地图上显示marker
+      item.addEventListener('click', function (e) {
+        var layer = layers.area.getLayerByFeatureId(e.target.getAttribute('poi'));
+        var latLng = layer.getCentroid();
+ 
+        if (!NGR.PolyUtil.PolygonContainsLatLng(layer, latLng)) {
+          latLng = layer.getInnerPoint();
+        }
+        if (marker) {
+          map.removeLayer(marker);
+          marker = null;
+        }
+        marker = NGR.marker(latLng, {
+          icon: NGR.icon({
+            iconUrl: '../../../resources/images/marker_icon@2x.png',
+            iconSize: [25, 32],
+          }),
+        });
+        map.addLayer(marker);
+        removeSearchPad();
+      });
+    }
+  };
+ 
+  var removeSearchPad = function () {
+    var pads = document.getElementsByClassName('search-pad');
+ 
+    for (var i = 0; i < pads.length; ++i) {
+      var pad = pads[i];
+ 
+      document.body.removeChild(pad);
+    }
+  };
+ 
+  // 初始化查询框
+  var input = NGR.DomUtil.create('input', 'platform-demo-input', document.body);
+  var searchImg = NGR.DomUtil.create('img', 'platform-demo-input-image', document.body);
+  var inputWidth = 400;
+  var imageSize = 26;
+ 
+  input.style.width = inputWidth + 'px';
+  input.style.transform = 'translate(' + (window.innerWidth / 2 - inputWidth / 2) + 'px)';
+  searchImg.src = '../../../resources/images/search.png';
+  searchImg.style.height = imageSize + 'px';
+  searchImg.style.width = imageSize + 'px';
+  searchImg.style.transform = 'translate(' + (window.innerWidth / 2 + inputWidth / 2 + 15) + 'px)';
+  searchImg.addEventListener('click', function (e) {
+    removeSearchPad();
+    var keywords = input.value;
+    // 搜索poi
+    res.POISearch({
+      keywords: keywords,
+      parents: [control.getCurrentFloor()],
+      coordinate: {x: coord.x, y: coord.y},
+      distance: 30,
+      start: 1,
+      count: 5,
+    }).then(function (response) {
+      if (response.total === 0) {
+        return ;
+      }
+ 
+      createSearchPad(response.list, '42px', input.style.transform);
+    }).fail(onerror);
+  });
+ 
+ 
+  // 请求地图数据
+  res.requestMap(mapId).then(function (mapInfo) {
+    res.requestPOIChildren(mapInfo.poi).then(function(floors) {
+      // 初始化楼层控件
+      map.addControl(control);
+      control.on('change', function (e) {
+        control.setCurrentFloor(e.to, loadPlanarGraph);
+      });
+      control.setFloorList(floors);
+      control.setCurrentFloor(floors[3].id, loadPlanarGraph);
+    }).fail(onerror);
+  }).fail(onerror);
+}).call(this);
